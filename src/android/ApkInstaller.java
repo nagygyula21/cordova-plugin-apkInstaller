@@ -1,5 +1,6 @@
 package plugin.apkInstaller;
 
+import android.app.Activity;
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.BuildHelper;
@@ -26,14 +27,21 @@ public class ApkInstaller extends CordovaPlugin {
     private static final int INSTALL_PERMISSION_REQUEST_CODE = 0;
     private static final int UNKNOWN_SOURCES_PERMISSION_REQUEST_CODE = 1;
     private static final int OTHER_PERMISSIONS_REQUEST_CODE = 2;
+    private static final int PACKAGE_INSTALLER = 3;
+
     private static String[] OTHER_PERMISSIONS = {
             Manifest.permission.INTERNET,
             Manifest.permission.READ_EXTERNAL_STORAGE,
             Manifest.permission.WRITE_EXTERNAL_STORAGE
     };
 
+    // callback
+    CallbackContext callback;
+
     @Override
     public boolean execute(String action, JSONArray data, CallbackContext callbackContext) throws JSONException {
+        this.callback = callbackContext;
+
         if (action.equals(ACTION_PERMISSION)) {
             if (verifyInstallPermission() && verifyOtherPermissions()) {
                 callbackContext.success();
@@ -59,7 +67,9 @@ public class ApkInstaller extends CordovaPlugin {
                     Intent i = new Intent(Intent.ACTION_INSTALL_PACKAGE);
                     i.setData(uri);
                     i.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                    context.startActivity(i);
+                    i.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+                    cordova.setActivityResultCallback(this);
+                    cordova.getActivity().startActivityForResult(i, PACKAGE_INSTALLER);
                 }else {
                     String command = "chmod 666 " + apkFile.getCanonicalPath();
                     Runtime runtime = Runtime.getRuntime();
@@ -68,7 +78,9 @@ public class ApkInstaller extends CordovaPlugin {
                     Intent i = new Intent(Intent.ACTION_VIEW);
                     i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     i.setDataAndType(Uri.parse("file://" + apkFile.getCanonicalPath()), "application/vnd.android.package-archive");
-                    context.startActivity(i);
+                    i.putExtra(Intent.EXTRA_RETURN_RESULT, true);
+                    cordova.setActivityResultCallback(this);
+                    cordova.getActivity().startActivityForResult(i, PACKAGE_INSTALLER);
                 }
             } catch (Exception ex) {
                 callbackContext.error(ex.toString());
@@ -142,6 +154,13 @@ public class ApkInstaller extends CordovaPlugin {
             catch (Settings.SettingNotFoundException e) {}
 
             verifyOtherPermissions();
+        }else if (requestCode == PACKAGE_INSTALLER) {
+            if (resultCode == Activity.RESULT_OK) {
+                callback.success("Package installed!");
+            }else {
+                callback.error("Package not installed!");
+            }
+            return;
         }
     }
 
