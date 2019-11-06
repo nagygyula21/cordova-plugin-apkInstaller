@@ -38,6 +38,9 @@ public class ApkInstaller extends CordovaPlugin {
             if (verifyInstallPermission() && verifyOtherPermissions()) {
                 callbackContext.success();
                 return true;
+            }else {
+                callbackContext.error("No permission");
+                return false;
             }
         }
     
@@ -45,7 +48,11 @@ public class ApkInstaller extends CordovaPlugin {
             String fileName = data.getString(0);
             Context context = this.cordova.getActivity().getApplicationContext();
             File apkFile = new File(context.getFilesDir() + "/" + fileName);
-
+            if (!apkFile.exists()) {
+                callbackContext.error("File not found: " + fileName);
+                return false;
+            }
+            
             try {
                 if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.N){
                     Uri uri = FileProvider.getUriForFile(context, context.getPackageName() + ".fileprovider", apkFile);
@@ -54,13 +61,18 @@ public class ApkInstaller extends CordovaPlugin {
                     i.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
                     context.startActivity(i);
                 }else {
+                    String command = "chmod 666 " + apkFile.getCanonicalPath();
+                    Runtime runtime = Runtime.getRuntime();
+                    runtime.exec(command);
+
                     Intent i = new Intent(Intent.ACTION_VIEW);
                     i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    i.setDataAndType(Uri.parse("file://" + apkFile.toString()), "application/vnd.android.package-archive");
+                    i.setDataAndType(Uri.parse("file://" + apkFile.getCanonicalPath()), "application/vnd.android.package-archive");
                     context.startActivity(i);
                 }
             } catch (Exception ex) {
                 callbackContext.error(ex.toString());
+                return false;
             }
             
             return true;
@@ -118,6 +130,8 @@ public class ApkInstaller extends CordovaPlugin {
             if (!cordova.getActivity().getPackageManager().canRequestPackageInstalls()) {
                 return;
             }
+
+            verifyOtherPermissions();
         }
         else if (requestCode == UNKNOWN_SOURCES_PERMISSION_REQUEST_CODE) {
             try {
@@ -126,6 +140,8 @@ public class ApkInstaller extends CordovaPlugin {
                 }
             }
             catch (Settings.SettingNotFoundException e) {}
+
+            verifyOtherPermissions();
         }
     }
 
